@@ -15,22 +15,6 @@ from app.utils.badge import get_badge_url
 router = APIRouter(prefix="/project", tags=["Projects"])
 
 
-@router.post("/")
-def post_project(project: NewProject) -> Project:
-    project = Project(**project.dict())
-    try:
-        return db.save_project(project)
-    except DuplicateKeyError:
-        raise HTTPException(
-            status_code=409, detail=f"Project already exists: {project.uuid}"
-        )
-
-
-@router.get("/all")
-def get_all_projects() -> List[Project]:
-    return db.list_projects()
-
-
 @router.get("/{project_id}")
 def get_project(
     project_id: Annotated[str, Path(description="Project ID")],
