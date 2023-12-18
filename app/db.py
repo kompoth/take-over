@@ -27,6 +27,8 @@ class MongoDB:
         self._client = MongoClient(DB_URI)
         self._db = self._client["take-over"]
 
+    # ==== Project ====
+
     def save_project(self, project: Project) -> Project:
         model_dump = project.model_dump(by_alias=True)
         self._db["projects"].insert_one(model_dump)
@@ -40,6 +42,8 @@ class MongoDB:
         found = list(self._db["projects"].find().limit(limit))
         return map(lambda x: Project(**x), found)
 
+    # ==== Commit ====
+
     def save_commit(self, commit: Commit) -> Commit:
         project = self.get_project(commit.project_id)
         if not project:
@@ -48,16 +52,46 @@ class MongoDB:
         self._db["commits"].insert_one(model_dump)
         return commit
 
-    def get_commit(self, commit_id: str) -> Commit:
+    def get_commit(self, commit_id: str) -> Commit | None:
         found = self._db["commits"].find_one({"_id": commit_id})
         return None if not found else Commit(**found)
 
+    def get_last_commit(
+        self, project_id: str, branch: str | None = None
+    ) -> Commit | None:
+        project = self.get_project(project_id)
+        if not project:
+            raise NotFoundError(f"Project doesn't exist: {project_id}")
+
+        sort = [("dttm", -1)]
+        selector = {"project_id": project_id}
+        if branch:
+            selector["branch"] = branch
+        found = self._db["commits"].find(selector).sort(sort).limit(1)[0]
+        return None if not found else Commit(**found)
+
+    # ==== Report ====
+
     def save_report(self, rr: Report) -> Report:
+        commit = self.get_commit(rr.commit_id)
+        if not commit:
+            raise NotFoundError(f"Commit doesn't exist: {rr.commit_id}")
         model_dump = rr.model_dump(by_alias=True)
         self._db["reports"].insert_one(model_dump)
         return rr
 
-    def get_user(self, user_id: str) -> User:
+    def get_reports(self, commit_id: str) -> List[Report]:
+        commit = self.get_commit(commit_id)
+        if not commit:
+            raise NotFoundError(f"Commit doesn't exist: {commit_id}")
+
+        selector = {"commit_id": commit_id}
+        found = self._db["reports"].find(selector)
+        return map(lambda x: Report(**x), found)
+
+    # ==== User ====
+
+    def get_user(self, user_id: str) -> User | None:
         found = self._db["users"].find_one({"_id": user_id})
         return None if not found else User(**found)
 
@@ -73,6 +107,8 @@ class MongoDB:
     def list_users(self, limit: int = 50) -> List[User]:
         found = list(self._db["users"].find().limit(limit))
         return map(lambda x: User(**x), found)
+
+    # ==== Access rights ====
 
     def add_user_to_project(
         self, user_id: str, project_id: str
