@@ -49,11 +49,8 @@ class MongoDB:
         res = self._db["reports"].delete_many({
             "commit_id": {"$in": [co.uuid for co in commits]}
         })
-        print(res)
         res = self._db["commits"].delete_many({"project_id": project_id})
-        print(res)
         res = self._db["projects"].delete_one({"_id": project_id})
-        print(res)
         return res is not None and res.deleted_count != 0
 
     # ==== Commit ====
@@ -65,8 +62,9 @@ class MongoDB:
         return commit
     
     def get_project_commits(self, project_id: str) -> List[Commit]:
+        self.get_project(project_id)
         found = self._db["commits"].find({"project_id": project_id})
-        return map(lambda x: Report(**x), found)
+        return map(lambda x: Commit(**x), found)
 
     def get_commit(self, commit_id: str, do_raise: bool = True) -> Commit | None:
         found = self._db["commits"].find_one({"_id": commit_id})
