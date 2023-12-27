@@ -27,7 +27,7 @@ def rgb_polylinear_gradient(rgbs, args):
     )
 
     def __grad(val):
-        mask = np.logical_and(arg_pairs[:, 0] < val, val <= arg_pairs[:, 1])
+        mask = np.logical_and(arg_pairs[:, 0] <= val, val <= arg_pairs[:, 1])
         return grads[mask][0](val)
 
     return __grad
