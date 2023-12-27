@@ -4,10 +4,9 @@ API router to load coverage reports
 
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
-from pymongo.errors import DuplicateKeyError
 
 from app.models import NewJob, Report, Commit
-from app.db import db, NotFoundError
+from app.db import db, NotFoundError, ExistsError
 
 router = APIRouter(prefix="/job", tags=["Jobs"])
 
@@ -36,7 +35,5 @@ def post_job(job: NewJob) -> Report:
     )
     try:
         return db.save_report(rr)
-    except DuplicateKeyError:
-        raise HTTPException(
-            status_code=409, detail=f"Report already exists: {rr.uuid}"
-        )
+    except ExistsError as err:
+        raise HTTPException(status_code=409, detail=str(err))

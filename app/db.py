@@ -91,7 +91,10 @@ class MongoDB:
         selector = {"project_id": project_id}
         if branch:
             selector["branch"] = branch
-        found = self._db["commits"].find(selector).sort(sort).limit(1)[0]
+        try:
+            found = self._db["commits"].find(selector).sort(sort).limit(1)[0]
+        except IndexError:
+            raise NotFoundError("Can't find matching reports")
         return None if not found else Commit(**found)
 
     # ==== Report ====
