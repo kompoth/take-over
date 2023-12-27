@@ -5,6 +5,7 @@ A singleton class to interact with MongoDB
 import os
 from typing import List
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
 
 from app.models import User, Project, Commit, Report, UserXProject
 from app.utils.singleton import singleton
@@ -15,6 +16,10 @@ DB_URI = f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@localhost:27017"
 
 
 class NotFoundError(Exception):
+    pass
+
+
+class ExistsError(Exception):
     pass
 
 
@@ -31,7 +36,10 @@ class MongoDB:
 
     def save_project(self, project: Project) -> Project:
         model_dump = project.model_dump(by_alias=True)
-        self._db["projects"].insert_one(model_dump)
+        try:
+            self._db["projects"].insert_one(model_dump)
+        except DuplicateKeyError:
+            raise ExistsError(f"Project already exists") 
         return project
 
     def get_project(self, project_id: str) -> Project | None:
@@ -58,7 +66,10 @@ class MongoDB:
     def save_commit(self, commit: Commit) -> Commit:
         self.get_project(commit.project_id)
         model_dump = commit.model_dump(by_alias=True)
-        self._db["commits"].insert_one(model_dump)
+        try:
+            self._db["commits"].insert_one(model_dump)
+        except DuplicateKeyError:
+            raise ExistsError(f"Commit already exists") 
         return commit
     
     def get_project_commits(self, project_id: str) -> List[Commit]:
@@ -88,7 +99,10 @@ class MongoDB:
     def save_report(self, rr: Report) -> Report:
         self.get_commit(rr.commit_id)
         model_dump = rr.model_dump(by_alias=True)
-        self._db["reports"].insert_one(model_dump)
+        try:
+            self._db["reports"].insert_one(model_dump)
+        except DuplicateKeyError:
+            raise ExistsError(f"Report already exists") 
         return rr
 
     def get_reports(self, commit_id: str) -> List[Report]:
@@ -107,7 +121,10 @@ class MongoDB:
 
     def save_user(self, user: User) -> User:
         model_dump = user.model_dump(by_alias=True)
-        self._db["users"].insert_one(model_dump)
+        try:
+            self._db["users"].insert_one(model_dump)
+        except DuplicateKeyError:
+            raise ExistsError(f"User already exists") 
         return user
 
     def delete_user(self, user_id) -> bool:
@@ -127,7 +144,10 @@ class MongoDB:
         self.get_project(project_id)
         uxp = UserXProject(user_id=user_id, project_id=project_id)
         model_dump = uxp.model_dump(by_alias=True)
-        self._db["user_x_project"].insert_one(model_dump)
+        try:
+            self._db["user_x_project"].insert_one(model_dump)
+        except DuplicateKeyError:
+            raise ExistsError(f"Access already given") 
         return uxp
 
     def remove_user_from_project(self, user_id: str, project_id: str) -> bool:
