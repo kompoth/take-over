@@ -21,8 +21,7 @@ def post_job(job: NewJob) -> Report:
         sha=job.commit_sha,
         dttm=job.commit_dttm,
     )
-    found = db.get_commit(commit.uuid)
-    if not found:
+    if not db.get_commit(commit.uuid, do_raise=False):
         try:
             db.save_commit(commit)
         except NotFoundError as ex:

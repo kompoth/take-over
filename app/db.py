@@ -36,33 +36,48 @@ class MongoDB:
 
     def get_project(self, project_id: str) -> Project | None:
         found = self._db["projects"].find_one({"_id": project_id})
-        return None if not found else Project(**found)
+        if not found:
+            raise NotFoundError(f"Project doesn't exist: {project_id}")
+        return Project(**found)
 
     def list_projects(self, limit: int = 50) -> List[Project]:
         found = list(self._db["projects"].find().limit(limit))
         return map(lambda x: Project(**x), found)
 
+    def delete_project(self, project_id) -> bool:
+        commits = self.get_project_commits(project_id)
+        res = self._db["reports"].delete_many({
+            "commit_id": {"$in": [co.uuid for co in commits]}
+        })
+        print(res)
+        res = self._db["commits"].delete_many({"project_id": project_id})
+        print(res)
+        res = self._db["projects"].delete_one({"_id": project_id})
+        print(res)
+        return res is not None and res.deleted_count != 0
+
     # ==== Commit ====
 
     def save_commit(self, commit: Commit) -> Commit:
-        project = self.get_project(commit.project_id)
-        if not project:
-            raise NotFoundError(f"Project doesn't exist: {commit.project_id}")
+        self.get_project(commit.project_id)
         model_dump = commit.model_dump(by_alias=True)
         self._db["commits"].insert_one(model_dump)
         return commit
+    
+    def get_project_commits(self, project_id: str) -> List[Commit]:
+        found = self._db["commits"].find({"project_id": project_id})
+        return map(lambda x: Report(**x), found)
 
-    def get_commit(self, commit_id: str) -> Commit | None:
+    def get_commit(self, commit_id: str, do_raise: bool = True) -> Commit | None:
         found = self._db["commits"].find_one({"_id": commit_id})
+        if not found and do_raise:
+            raise NotFoundError(f"Commit doesn't exist: {commit_id}")
         return None if not found else Commit(**found)
 
     def get_last_commit(
         self, project_id: str, branch: str | None = None
     ) -> Commit | None:
-        project = self.get_project(project_id)
-        if not project:
-            raise NotFoundError(f"Project doesn't exist: {project_id}")
-
+        self.get_project(project_id)
         sort = [("dttm", -1)]
         selector = {"project_id": project_id}
         if branch:
@@ -71,20 +86,15 @@ class MongoDB:
         return None if not found else Commit(**found)
 
     # ==== Report ====
-
+    
     def save_report(self, rr: Report) -> Report:
-        commit = self.get_commit(rr.commit_id)
-        if not commit:
-            raise NotFoundError(f"Commit doesn't exist: {rr.commit_id}")
+        self.get_commit(rr.commit_id)
         model_dump = rr.model_dump(by_alias=True)
         self._db["reports"].insert_one(model_dump)
         return rr
 
     def get_reports(self, commit_id: str) -> List[Report]:
-        commit = self.get_commit(commit_id)
-        if not commit:
-            raise NotFoundError(f"Commit doesn't exist: {commit_id}")
-
+        self.get_commit(commit_id)
         selector = {"commit_id": commit_id}
         found = self._db["reports"].find(selector)
         return map(lambda x: Report(**x), found)
@@ -93,7 +103,9 @@ class MongoDB:
 
     def get_user(self, user_id: str) -> User | None:
         found = self._db["users"].find_one({"_id": user_id})
-        return None if not found else User(**found)
+        if not found:
+            raise NotFoundError(f"User doesn't exist: {user_id}")
+        return User(**found)
 
     def save_user(self, user: User) -> User:
         model_dump = user.model_dump(by_alias=True)
@@ -113,21 +125,16 @@ class MongoDB:
     def add_user_to_project(
         self, user_id: str, project_id: str
     ) -> UserXProject:
-        if self.get_user(user_id) is None:
-            raise NotFoundError(f"User doesn't exist: {user_id}")
-        if self.get_project(project_id) is None:
-            raise NotFoundError(f"Project doesn't exist: {user_id}")
+        self.get_user(user_id)
+        self.get_project(project_id)
         uxp = UserXProject(user_id=user_id, project_id=project_id)
         model_dump = uxp.model_dump(by_alias=True)
         self._db["user_x_project"].insert_one(model_dump)
         return uxp
 
     def remove_user_from_project(self, user_id: str, project_id: str) -> bool:
-        if self.get_user(user_id) is None:
-            raise NotFoundError(f"User doesn't exist: {user_id}")
-        if self.get_project(project_id) is None:
-            raise NotFoundError(f"Project doesn't exist: {user_id}")
-
+        self.get_user(user_id)
+        self.get_project(project_id)
         uxp = UserXProject(user_id=user_id, project_id=project_id)
         found = self._db["user_x_project"].find_one({"_id": uxp.uuid})
         if not found:
@@ -141,8 +148,7 @@ class MongoDB:
         return res is not None and res.deleted_count != 0
 
     def list_user_project_ids(self, user_id: str) -> List[UserXProject]:
-        if self.get_user(user_id) is None:
-            raise NotFoundError(f"User doesn't exist: {user_id}")
+        self.get_user(user_id)
         found = self._db["user_x_project"].find({"user_id": user_id})
         return [uxp["project_id"] for uxp in found]
 
